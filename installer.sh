@@ -1,14 +1,18 @@
 #!/bin/bash
 
-#TODO: 
-# - make stop script
-# - check if name exists
-# - code cleanup
-# - check if port is used by other server
+# Aaron Gensetter, 2021
 
-##################
-# functions 	 #
-##################
+# TODO 
+#	- manage PORTs
+#	- implement -y
+#	- Plugin selecter
+
+# Text Format
+F_RED=$(tput setaf 1)
+F_GREEN=$(tput setaf 2)
+F_YELLOW=$(tput setaf 3)
+F_BLUE=$(tput setaf 4)
+F_RESET=$(tput sgr0 )
 
 PACKAGES=(
 	jq
@@ -18,16 +22,8 @@ PACKAGES=(
 	sudo
 )
 
-# Text Format
-F_RED=$(tput setaf 1)
-F_GREEN=$(tput setaf 2)
-F_YELLOW=$(tput setaf 3)
-F_BLUE=$(tput setaf 4)
-F_RESET=$(tput sgr0 )
-
 install_packages() {
 	echo "Installing needed packages"
-	# check for installed packages
 	for PACKAGE in ${PACKAGES[@]}; do
 		dpkg -s $PACKAGE  &> /dev/null
 		if [[ $? -ne 0 ]]; then
@@ -41,73 +37,89 @@ install_packages() {
 			fi
 		fi
 	done
+
+	clear 
 }
 
 check_args() {
-	for ARG in $*; do
-		if [[ $ARG == "--help" ]] || [[ $ARG == "-h" ]]; then
-			echo "HELP"
-			echo "-----------"
-			echo "USAGE: ${0} [version] [name] ([ram in mb])"
-			echo "	> Default ram = 1024MB"
-			echo 
-			echo "${0} --help"
-			echo "	> shows help"
-			echo "${0} --show-versions"
-			echo "	> shows all versions of PaperMC"
-			exit 0
-		elif [[ $ARG == "--show-versions" ]]; then
-			echo "Listing all PaperMC Versions."
-			API=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. []')
-			for VERSION in ${API[@]}; do
-				echo $VERSION
-			done
-			exit 0
-		fi
-	done
-}
-
-install() {
-	API=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. []')
-	SELECTED_VERSION=$1
-	NAME=$2
-	RAM=$3
-	USERNAME=$4
-
-	FOUND=0
-	for VERSION in ${API[@]}; do
-		if [[ ${SELECTED_VERSION} == $(echo "${VERSION}" | sed -r 's/["]+//g') ]]; then
-			FOUND=1
-			echo "Version ${SELECTED_VERSION} selected"
-			break
-		fi
-	done
-
-	if [[ $FOUND -ne 1 ]]; then
-		echo "${F_RED}Version \"${SELECTED_VERSION}\" not found${F_RESET}"
+	if [[ $# -lt 1 ]]; then
+		echo "Please use $0 --help"
 		exit 1
 	fi
 
-	echo "Creating server \"${NAME}\" with version \"${SELECTED_VERSION}\" with \"${RAM}\"MB of memory."
+    for ARG in $@; do
+		case $ARG in
+		--help|-h)
+			echo "HELP - Commands of ${0}"
+			echo "-----------"
+			echo "--help: prints Help"
+			echo "--show-versions: prints all possible versions of Minecraft"
+			echo "-----------"
+			echo "-ram: sets RAM (512 - 8192)MB (default= 1024)MB"
+			echo "-name: sets name (default= srv1)"
+			echo "-version: sets version (default= latest)"
+			echo "-y ?"
+			exit 0
+		;;
+		--show-versions|-mcv)
+			echo "Listing all PaperMC Versions."
+			echo "LATEST: $(echo $PAPERMC_VERSION_LATEST | sed -r 's/["]+//g')"
+			for VERSION in ${PAPERMC_VERSIONS[@]}; do
+				echo $(echo "-" $VERSION | sed -r 's/["]+//g')
+			done
+			exit 0
+		;;
+		*);;
+		esac
 
-	echo "downloading ${SELECTED_VERSION}..."
+		# YES PARAMETER
+		if [[ $ARG == "-y" ]]; then
+			YES=true
+		fi
 
-	wget https://papermc.io/api/v1/paper/$SELECTED_VERSION/latest/download -O server.jar --show-progress -q
-	echo "eula=true" > eula.txt # accept eula
+		# RAM PARAMETER
+		if [[ $ARG == \-ram\=* ]]; then
+			TEMP_RAM=$(echo $ARG | sed 's/-ram=//')
 
-	# Service
-	create_service $NAME $SELECTED_VERSION $RAM $USERNAME
+			if [[ $TEMP_RAM != "" ]] && [[ $TEMP_RAM -gt 511 ]] && [[ $TEMP_RAM -lt 8193 ]]; then
+				RAM=$TEMP_RAM
+			else
+				echo "${F_RED}RAM not correct, set to default. ${RAM}MB${F_RESET}"
+			fi
+		fi
 
-	chown $USERNAME:$USERNAME /opt/mc_servers -R
+		# NAME PARAMETER
+		if [[ $ARG == \-name\=* ]]; then
+			TEMP_NAME=$(echo $ARG | sed 's/-name=//')
+			if [[ $TEMP_NAME != "" ]]; then
+				NAME=$TEMP_NAME
+			else 
+				echo "${F_RED}NAME not correct, set to default. ${NAME}${F_RESET}"
+			fi
+		fi
 
-	systemctl enable mc-$NAME
-	systemctl start mc-$NAME
+		# VERSION PARAMETER
+		if [[ $ARG == \-version\=* ]]; then
+			TEMP_VERSION=$(echo $ARG | sed 's/-version=//')
+			FOUND=0
+
+			for MCVERSION in ${PAPERMC_VERSIONS[@]}; do
+				if [[ ${TEMP_VERSION} == $(echo "${MCVERSION}" | sed -r 's/["]+//g') ]]; then
+					FOUND=1
+					break
+				fi
+			done
+
+			if [[ $FOUND -eq 1 ]]; then
+				VERSION=$TEMP_VERSION
+			else
+				echo "${F_RED}Version not found, set to default. ${VERSION}${F_RESET}"
+			fi
+		fi
+    done
 }
 
 create_service() {
-	NAME=$1
-	RAM=$3
-	USER=$4
 	FILE="/etc/systemd/system/mc-${NAME}.service"
 
 	echo -e "[Unit]" >> $FILE
@@ -116,29 +128,48 @@ create_service() {
 	echo -e "" >> $FILE
 	echo -e "[Service]" >> $FILE
 	echo -e "WorkingDirectory=/opt/mc_servers/mc-${NAME}" >> $FILE
-	echo -e "User=${USER}" >> $FILE
-	echo -e "Group=${USER}" >> $FILE
+	echo -e "User=${USERNAME}" >> $FILE
+	echo -e "Group=${USERNAME}" >> $FILE
 	echo -e "Restart=always" >> $FILE
 	echo -e "ExecStart=screen -DmS mc-${NAME} java -Xmx${RAM}M -jar server.jar nogui" >> $FILE
 	#echo -e "ExecStop=SCRIPT" >> $FILE
 	echo -e "" >> $FILE
 	echo -e "[Install]" >> $FILE
 	echo -e "WantedBy=multi-user.target" >> $FILE
+
+	echo "${F_GREEN}Service created${F_RESET}"
 }
 
 create_enviroment() {
-
-	USERNAME=$1
-	NAME=$2
+	if [[ -d /opt/mc_servers/mc-$NAME ]]; then
+		echo "${F_RED}This server exists! (${NAME})${F_RESET}"
+		exit 1
+	fi
 
 	if ! id "${USERNAME}" &>/dev/null; then
 		useradd -m -d /opt/mc_servers $USERNAME -s /bin/bash
-		echo "User \"${USERNAME}\" wurde erstellt"
+		echo "${F_GREEN}User \"${USERNAME}\" was created${F_RESET}"
 	fi
 
 	chown $USERNAME:$USERNAME /opt/mc_servers -R
 	sudo -u $USERNAME mkdir /opt/mc_servers/mc-$NAME
+	echo "${F_GREEN}Created new directory for Server mc-${NAME}${F_RESET}"
 	cd /opt/mc_servers/mc-$NAME
+}
+
+install() {
+	echo "${F_GREEN}Creating server \"${NAME}\" with version \"${VERSION}\" with \"${RAM}\"MB of memory.${F_RESET}"
+	echo "${F_GREEN}downloading ${VERSION}...${F_RESET}"
+
+	echo "VRESION: $VERSION"
+	wget https://papermc.io/api/v1/paper/$VERSION/latest/download -O server.jar --show-progress -q
+	echo "eula=true" > eula.txt # accept eula
+
+	create_service
+
+	chown $USERNAME:$USERNAME /opt/mc_servers -R
+	systemctl enable mc-$NAME
+	systemctl start mc-$NAME
 }
 
 ##################
@@ -147,33 +178,25 @@ create_enviroment() {
 
 # check if user is root
 if [[ $UID -ne 0 ]]; then
-	echo "${f_RED}you have to be root to execute this script!${F_RESET}"
+	echo "${F_RED}You have to be root, to execute this part!${F_RESET}"
+	echo "${F_RED}try \"sudo ${0}\"${F_RESET}"
 	exit 1
 fi
 
 install_packages
-clear
-check_args
 
-# check if arguments matches
-if [[ $# -lt 2 ]] || [[ $# -gt 3 ]]; then
-	echo "USAGE: ${0} [version] [name] ([ram in mb])"
-	exit 1
-fi
-
+PAPERMC_VERSIONS=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. []')
+PAPERMC_VERSION_LATEST=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. [0]' | sed -r 's/["]+//g')
+# Standard stuff
+YES=false
+RAM=1024
+NAME="srv1"
+VERSION=$PAPERMC_VERSION_LATEST
 USERNAME="mc-user"
-NAME=$2
-VERSION=$1
 
-create_enviroment $USERNAME $NAME
+check_args $*
 
-if [[ $3 != "" ]] && [[ $3 -gt 511 ]] && [[ $3 -lt 8193 ]]; then
-	RAM=$3
-else 
-	echo "${F_YELLOW}Ram was set to default. (1024MB)${F_RESET}"
-	RAM=1024
-fi
-
-install $VERSION $NAME $RAM $USERNAME
+create_enviroment
+install
 
 exit 0
