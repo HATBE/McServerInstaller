@@ -49,6 +49,7 @@ check_args() {
 
     for ARG in $@; do
 		case $ARG in
+		# HELP
 		--help|-h)
 			echo "HELP - Commands of ${0}"
 			echo "-----------"
@@ -61,6 +62,7 @@ check_args() {
 			echo "-y ?"
 			exit 0
 		;;
+		# SHOW VERSION
 		--show-versions|-mcv)
 			echo "Listing all PaperMC Versions."
 			echo "LATEST: $(echo $PAPERMC_VERSION_LATEST | sed -r 's/["]+//g')"
@@ -69,16 +71,11 @@ check_args() {
 			done
 			exit 0
 		;;
-		*);;
-		esac
-
-		# YES PARAMETER
-		if [[ $ARG == "-y" ]]; then
+		-y)
 			YES=true
-		fi
-
-		# RAM PARAMETER
-		if [[ $ARG == \-ram\=* ]]; then
+		;;
+		# RAM
+		-ram=*)
 			TEMP_RAM=$(echo $ARG | sed 's/-ram=//')
 
 			if [[ $TEMP_RAM != "" ]] && [[ $TEMP_RAM -gt 511 ]] && [[ $TEMP_RAM -lt 8193 ]]; then
@@ -86,20 +83,18 @@ check_args() {
 			else
 				echo "${F_RED}RAM not correct, set to default. ${RAM}MB${F_RESET}"
 			fi
-		fi
-
-		# NAME PARAMETER
-		if [[ $ARG == \-name\=* ]]; then
+		;;
+		# NAME
+		-name=*)
 			TEMP_NAME=$(echo $ARG | sed 's/-name=//')
 			if [[ $TEMP_NAME != "" ]]; then
 				NAME=$TEMP_NAME
 			else 
 				echo "${F_RED}NAME not correct, set to default. ${NAME}${F_RESET}"
 			fi
-		fi
-
-		# VERSION PARAMETER
-		if [[ $ARG == \-version\=* ]]; then
+		;;
+		# VERSION
+		-version=*)
 			TEMP_VERSION=$(echo $ARG | sed 's/-version=//')
 			FOUND=0
 
@@ -115,7 +110,9 @@ check_args() {
 			else
 				echo "${F_RED}Version not found, set to default. ${VERSION}${F_RESET}"
 			fi
-		fi
+		;;
+		*);;
+		esac
     done
 }
 
@@ -173,7 +170,7 @@ install() {
 }
 
 ##################
-# Script Start	 #
+# Script    	 #
 ##################
 
 # check if user is root
