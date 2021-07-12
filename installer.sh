@@ -3,7 +3,7 @@
 # Aaron Gensetter, 2021
 
 # TODO 
-#	- manage PORTs
+# 	- check if other server usees port
 #	- implement -y
 #	- Plugin selecter
 
@@ -59,6 +59,7 @@ check_args() {
 			echo "-ram: sets RAM (512 - 8192)MB (default= 1024)MB"
 			echo "-name: sets name (default= srv1)"
 			echo "-version: sets version (default= latest)"
+			echo "-port: sets port (default= 25565)"
 			echo "-y ?"
 			exit 0
 		;;
@@ -111,6 +112,15 @@ check_args() {
 				echo "${F_RED}Version not found, set to default. ${VERSION}${F_RESET}"
 			fi
 		;;
+		# NAME
+		-port=*)
+			TEMP_PORT=$(echo $ARG | sed 's/-port=//')
+			if [[ $TEMP_PORT != "" ]] && [[ $TEMP_PORT -gt 1023 ]] && [[ $TEMP_PORT -lt 65536 ]]; then
+				PORT=$TEMP_PORT
+			else 
+				echo "${F_RED}PORT not correct, set to default. ${PORT}${F_RESET}"
+			fi
+		;;
 		*);;
 		esac
     done
@@ -161,6 +171,7 @@ install() {
 	echo "VRESION: $VERSION"
 	wget https://papermc.io/api/v1/paper/$VERSION/latest/download -O server.jar --show-progress -q
 	echo "eula=true" > eula.txt # accept eula
+	echo "server-port=${PORT}" > server.properties # set port
 
 	create_service
 
@@ -190,6 +201,7 @@ RAM=1024
 NAME="srv1"
 VERSION=$PAPERMC_VERSION_LATEST
 USERNAME="mc-user"
+PORT=25565
 
 check_args $*
 
