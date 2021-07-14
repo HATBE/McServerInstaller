@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# https://github.com/Spacelord09/mcserver-deploy
+
 # Aaron Gensetter, 2021
 
 # TODO 
