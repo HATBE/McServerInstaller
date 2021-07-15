@@ -1,11 +1,10 @@
 #!/bin/bash
 
-# https://github.com/Spacelord09/mcserver-deploy
+# check out: https://github.com/Spacelord09/mcserver-deploy
 
 # Aaron Gensetter, 2021
 
 # TODO 
-# 	- check if other server usees port
 #	- implement -y
 #	- Plugin selecter
 
@@ -15,6 +14,8 @@ F_GREEN=$(tput setaf 2)
 F_YELLOW=$(tput setaf 3)
 F_BLUE=$(tput setaf 4)
 F_RESET=$(tput sgr0 )
+
+SRV_DIR="/opt/mc_servers"
 
 PACKAGES=(
 	jq
@@ -136,7 +137,7 @@ create_service() {
 	echo -e "After=network.target" >> $FILE
 	echo -e "" >> $FILE
 	echo -e "[Service]" >> $FILE
-	echo -e "WorkingDirectory=/opt/mc_servers/mc-${NAME}" >> $FILE
+	echo -e "WorkingDirectory=${SRV_DIR}/mc-${NAME}" >> $FILE
 	echo -e "User=${USERNAME}" >> $FILE
 	echo -e "Group=${USERNAME}" >> $FILE
 	echo -e "Restart=always" >> $FILE
@@ -150,24 +151,24 @@ create_service() {
 }
 
 create_enviroment() {
-	if [[ -d /opt/mc_servers/mc-$NAME ]]; then
+	if [[ -d $SRV_DIR/mc-$NAME ]]; then
 		echo "${F_RED}This server exists! (${NAME})${F_RESET}"
 		exit 1
 	fi
 
 	if ! id "${USERNAME}" &>/dev/null; then
-		useradd -m -d /opt/mc_servers $USERNAME -s /bin/bash
+		useradd -m -d $SRV_DIR $USERNAME -s /bin/bash
 		echo "${F_GREEN}User \"${USERNAME}\" was created${F_RESET}"
 	fi
 
-	chown $USERNAME:$USERNAME /opt/mc_servers -R
-	sudo -u $USERNAME mkdir /opt/mc_servers/mc-$NAME
+	chown $USERNAME:$USERNAME $SRV_DIR -R
+	sudo -u $USERNAME mkdir $SRV_DIR/mc-$NAME
 	echo "${F_GREEN}Created new directory for Server mc-${NAME}${F_RESET}"
-	cd /opt/mc_servers/mc-$NAME
+	cd $SRV_DIR/mc-$NAME
 }
 
 install() {
-	echo "${F_GREEN}Creating server \"${NAME}\" with version \"${VERSION}\" with \"${RAM}\"MB of memory.${F_RESET}"
+	echo "${F_GREEN}Creating server ${F_BLUE}\"${NAME}\"${F_GREEN} with version ${F_BLUE}\"${VERSION}\"${F_GREEN} with ${F_BLUE}\"${RAM}\"MB ${F_GREEN}of memory, on port ${F_BLUE}\"${PORT}\"${F_GREEN}.${F_RESET}"
 	echo "${F_GREEN}downloading ${VERSION}...${F_RESET}"
 
 	echo "VRESION: $VERSION"
@@ -175,11 +176,28 @@ install() {
 	echo "eula=true" > eula.txt # accept eula
 	echo "server-port=${PORT}" > server.properties # set port
 
-	create_service
+	create_service # create a service for the minecraft server
 
-	chown $USERNAME:$USERNAME /opt/mc_servers -R
+	chown $USERNAME:$USERNAME $SRV_DIR -R
 	systemctl enable mc-$NAME
 	systemctl start mc-$NAME
+}
+
+check_port() {
+	cd $SRV_DIR
+	SRVS=$(ls -d *)
+
+	for SRV in ${SRVS}; do
+		cd $SRV
+		PORT_SELECTER=$(cat server.properties | grep server-port= | sed 's/server-port=//')
+
+		if [[ $PORT_SELECTER == $PORT  ]]; then
+			echo "${F_RED}Port cant be set! (${PORT})${F_RESET}"
+			exit 1
+		fi
+
+		cd $SRV_DIR
+	done
 }
 
 ##################
@@ -197,7 +215,7 @@ install_packages
 
 PAPERMC_VERSIONS=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. []')
 PAPERMC_VERSION_LATEST=$(curl -s https://papermc.io/api/v1/paper | jq '.versions |. [0]' | sed -r 's/["]+//g')
-# Standard stuff
+# standard stuff
 YES=false
 RAM=1024
 NAME="srv1"
@@ -207,7 +225,8 @@ PORT=25565
 
 check_args $*
 
-create_enviroment
-install
+check_port # check if Port is available
+create_enviroment # create user and folder for server
+install # install the Server
 
 exit 0
