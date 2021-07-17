@@ -26,22 +26,28 @@ PACKAGES=(
 )
 
 install_packages() {
-	echo "Installing needed packages"
+	COUNT=0
+	echo "${F_GREEN}Installing needed packages...${F_RESET}"
 	for PACKAGE in ${PACKAGES[@]}; do
 		dpkg -s $PACKAGE  &> /dev/null
 		if [[ $? -ne 0 ]]; then
+			COUNT=$(($COUNT+1))
 			echo "${F_RED}${PACKAGE} not found${F_RESET}"
-			echo "${F_YELLOW}installing $PACKAGE...${F_RESET}"
+			echo "${F_GREEN}installing $PACKAGE...${F_RESET}"
 			apt install $PACKAGE -y &> /dev/null
 			if [[ $? -ne 0 ]]; then
-				echo "${F_RED}installation failed, \"${PACKAGE}\" not found${F_RESET}"
+				echo "${F_RED}Installation failed, \"${PACKAGE}\" not found${F_RESET}"
 				echo "${F_YELLOW}try \"sudo apt update\"${F_RESET}"
 				exit 1
 			fi
 		fi
 	done
 
-	clear 
+	if [[ $COUNT -eq 0 ]]; then
+		echo "${F_GREEN}Everithing up to date.${F_RESET}"
+	else 
+		echo "${F_GREEN}Installed ${F_BLUE}${COUNT}${F_GREEN} packages.${F_RESET}"
+	fi
 }
 
 check_args() {
@@ -84,8 +90,9 @@ check_args() {
 
 			if [[ $TEMP_RAM != "" ]] && [[ $TEMP_RAM -gt 511 ]] && [[ $TEMP_RAM -lt 8193 ]]; then
 				RAM=$TEMP_RAM
+				echo "${F_GREEN}- ram was set to ${F_BLUE}${RAM}MB${F_RESET}"
 			else
-				echo "${F_RED}RAM not correct, set to default. ${RAM}MB${F_RESET}"
+				echo "${F_YELLOW}RAM not correct, set to default. ${RAM}MB${F_RESET}"
 			fi
 		;;
 		# NAME
@@ -93,8 +100,9 @@ check_args() {
 			TEMP_NAME=$(echo $ARG | sed 's/-name=//')
 			if [[ $TEMP_NAME != "" ]]; then
 				NAME=$TEMP_NAME
+				echo "${F_GREEN}- name was set to ${F_BLUE}${NAME}${F_RESET}"
 			else 
-				echo "${F_RED}NAME not correct, set to default. ${NAME}${F_RESET}"
+				echo "${F_YELLOW}NAME not correct, set to default. ${NAME}${F_RESET}"
 			fi
 		;;
 		# VERSION
@@ -111,8 +119,9 @@ check_args() {
 
 			if [[ $FOUND -eq 1 ]]; then
 				VERSION=$TEMP_VERSION
+				echo "${F_GREEN}version was set to ${F_BLUE}${VERSION}${F_RESET}"
 			else
-				echo "${F_RED}Version not found, set to default. ${VERSION}${F_RESET}"
+				echo "${F_YELLOW}version not found, set to default. ${VERSION}${F_RESET}"
 			fi
 		;;
 		# NAME
@@ -120,8 +129,9 @@ check_args() {
 			TEMP_PORT=$(echo $ARG | sed 's/-port=//')
 			if [[ $TEMP_PORT != "" ]] && [[ $TEMP_PORT -gt 1023 ]] && [[ $TEMP_PORT -lt 65536 ]]; then
 				PORT=$TEMP_PORT
+				echo "${F_GREEN}port was set to ${F_BLUE}${PORT}${F_RESET}"
 			else 
-				echo "${F_RED}PORT not correct, set to default. ${PORT}${F_RESET}"
+				echo "${F_YELLOW}port not correct, set to default. ${PORT}${F_RESET}"
 			fi
 		;;
 		*);;
@@ -147,23 +157,23 @@ create_service() {
 	echo -e "[Install]" >> $FILE
 	echo -e "WantedBy=multi-user.target" >> $FILE
 
-	echo "${F_GREEN}Service created${F_RESET}"
+	echo "${F_GREEN}Service created ${F_BLUE}(mc-${NAME}.service)${F_RESET}"
 }
 
 create_enviroment() {
 	if [[ -d $SRV_DIR/mc-$NAME ]]; then
-		echo "${F_RED}This server exists! (${NAME})${F_RESET}"
+		echo "${F_RED}This server exists! ${F_BLUE}(${NAME})${F_RESET}"
 		exit 1
 	fi
 
 	if ! id "${USERNAME}" &>/dev/null; then
 		useradd -m -d $SRV_DIR $USERNAME -s /bin/bash
-		echo "${F_GREEN}User \"${USERNAME}\" was created${F_RESET}"
+		echo "${F_GREEN}User ${F_BLUE}\"${USERNAME}\"${F_GREEN} was created${F_RESET}"
 	fi
 
 	chown $USERNAME:$USERNAME $SRV_DIR -R
 	sudo -u $USERNAME mkdir $SRV_DIR/mc-$NAME
-	echo "${F_GREEN}Created new directory for Server mc-${NAME}${F_RESET}"
+	echo "${F_GREEN}Created new directory for Server ${F_BLUE}mc-${NAME}${F_RESET}"
 	cd $SRV_DIR/mc-$NAME
 }
 
@@ -171,7 +181,6 @@ install() {
 	echo "${F_GREEN}Creating server ${F_BLUE}\"${NAME}\"${F_GREEN} with version ${F_BLUE}\"${VERSION}\"${F_GREEN} with ${F_BLUE}\"${RAM}\"MB ${F_GREEN}of memory, on port ${F_BLUE}\"${PORT}\"${F_GREEN}.${F_RESET}"
 	echo "${F_GREEN}downloading ${VERSION}...${F_RESET}"
 
-	echo "VRESION: $VERSION"
 	wget https://papermc.io/api/v1/paper/$VERSION/latest/download -O server.jar --show-progress -q
 	echo "eula=true" > eula.txt # accept eula
 	echo "server-port=${PORT}" > server.properties # set port
@@ -184,20 +193,22 @@ install() {
 }
 
 check_port() {
-	cd $SRV_DIR
-	SRVS=$(ls -d *)
-
-	for SRV in ${SRVS}; do
-		cd $SRV
-		PORT_SELECTER=$(cat server.properties | grep server-port= | sed 's/server-port=//')
-
-		if [[ $PORT_SELECTER == $PORT  ]]; then
-			echo "${F_RED}Port cant be set! (${PORT})${F_RESET}"
-			exit 1
-		fi
-
+	if [[ -d $SRV_DIR ]]; then
 		cd $SRV_DIR
-	done
+		SRVS=$(ls -d *)
+
+		for SRV in ${SRVS}; do
+			cd $SRV
+			PORT_SELECTER=$(cat server.properties | grep server-port= | sed 's/server-port=//')
+
+			if [[ $PORT_SELECTER == $PORT  ]]; then
+				echo "${F_RED}Port cant be set! ${F_BLUE}(${PORT})${F_RESET}"
+				exit 1
+			fi
+
+			cd $SRV_DIR
+		done
+	fi
 }
 
 ##################
