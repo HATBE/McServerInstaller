@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# (c) Aaron Gensetter, 2020
+# (c) Aaron Gensetter, 2021
 
 << 'TODO'
   POSTGRES -> port free chekcer, display msg (make function?)
@@ -65,8 +65,13 @@ postgres() {
 
   ID=$(docker run -d --name $NAME -p $PORT:5432 -e POSTGRES_PASSWORD=$PASSWORD -e POSTGRES_DB=$DATABASE -e POSTGRES_USER=$SUPERUSER postgres:latest)
 
-  echo $ID
-  # select port that is given
+  if [[ $PORT -eq 0 ]]; then
+    PORT=$(sudo docker inspect $ID | grep HostPort | sort | uniq | grep -o [0-9]* | grep -v 0)
+  fi
+  IP=$(ip route get 8.8.8.8 | grep -oP 'src \K[^ ]+')
+
+  messages "success" "Created container ${NAME}"
+  echo "Connect: ${SUPERUSER}@${IP}:${PORT}, DB: ${DATABASE}, Password: ***"
 }
 #MARIADB
 mariadb() {
