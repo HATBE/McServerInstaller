@@ -16,6 +16,7 @@ $ bash installer.sh
 | -v              | sets version (default= latest)            |
 | -p              | sets port (default= 25565)                |
 | -y              | dont ask questions                        |
+
 Example:
 
 ``` bash
